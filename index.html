@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera App</title>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f8f9fa; }
+    video, img { width: 80%; max-width: 400px; margin: 10px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    button { margin: 5px; padding: 10px 15px; border: none; border-radius: 6px; background: #007bff; color: white; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    #mediaList { margin-top: 20px; }
+    .media-item { margin: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Camera Recorder with Storage</h2>
+  <video id="camera" autoplay playsinline></video><br>
+  
+  <button onclick="toggleCamera()">Flip</button>
+  <button onclick="startRecording()">Record</button>
+  <button onclick="stopRecording()">Stop</button>
+  <button onclick="toggleMute()" id="muteBtn">Mute</button>
+  <button onclick="takePhoto()">📸 Photo</button>
+
+  <h3>Saved Media</h3>
+  <div id="mediaList"></div>
+
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <script>
+    let stream, recorder, recordedChunks = [], usingFront = true, isMuted = false;
+
+    async function startCamera() {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: usingFront ? "user" : "environment" }, audio: true
+      });
+      document.getElementById("camera").srcObject = stream;
+    }
+
+    function toggleCamera() { usingFront = !usingFront; startCamera(); }
+
+    function startRecording() {
+      recordedChunks = [];
+      recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      recorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        uploadMedia(blob, "video.webm");
+      };
+      recorder.start();
+      alert("Recording...");
+    }
+
+    function stopRecording() {
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+    }
+
+    function toggleMute() {
+      stream.getAudioTracks().forEach(track => track.enabled = !track.enabled);
+      isMuted = !isMuted;
+      document.getElementById("muteBtn").innerText = isMuted ? "Unmute" : "Mute";
+    }
+
+    function takePhoto() {
+      const video = document.getElementById("camera");
+      const canvas = document.getElementById("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      canvas.toBlob(blob => uploadMedia(blob, "photo.png"));
+    }
+
+    async function uploadMedia(blob, filename) {
+      const formData = new FormData();
+      formData.append("file", blob, filename);
+      await fetch("/upload", { method: "POST", body: formData });
+      loadMediaList();
+    }
+
+    async function loadMediaList() {
+      const res = await fetch("/files");
+      const files = await res.json();
+      const list = document.getElementById("mediaList");
+      list.innerHTML = "";
+      files.forEach(file => {
+        const div = document.createElement("div");
+        div.className = "media-item";
+        if (file.endsWith(".png")) {
+          div.innerHTML = `<img src="/uploads/${file}" width="200">
+                           <button onclick="deleteFile('${file}')">Delete</button>`;
+        } else {
+          div.innerHTML = `<video src="/uploads/${file}" width="200" controls></video>
+                           <button onclick="deleteFile('${file}')">Delete</button>`;
+        }
+        list.appendChild(div);
+      });
+    }
+
+    async function deleteFile(filename) {
+      await fetch(`/delete/${filename}`, { method: "DELETE" });
+      loadMediaList();
+    }
+
+    startCamera();
+    loadMediaList();
+  </script>
+</body>
+</html>
