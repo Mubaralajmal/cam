@@ -29,6 +29,8 @@
   <canvas id="canvas" style="display:none;"></canvas>
 
   <script>
+    const BACKEND_URL = "https://cam-cxgb.onrender.com"; // 🔑 point frontend to backend
+
     let stream, recorder, recordedChunks = [], usingFront = true, isMuted = false;
 
     async function startCamera() {
@@ -75,12 +77,12 @@
     async function uploadMedia(blob, filename) {
       const formData = new FormData();
       formData.append("file", blob, filename);
-      await fetch("/upload", { method: "POST", body: formData });
+      await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
       loadMediaList();
     }
 
     async function loadMediaList() {
-      const res = await fetch("/files");
+      const res = await fetch(`${BACKEND_URL}/files`);
       const files = await res.json();
       const list = document.getElementById("mediaList");
       list.innerHTML = "";
@@ -88,10 +90,10 @@
         const div = document.createElement("div");
         div.className = "media-item";
         if (file.endsWith(".png")) {
-          div.innerHTML = `<img src="/uploads/${file}" width="200">
+          div.innerHTML = `<img src="${BACKEND_URL}/uploads/${file}" width="200">
                            <button onclick="deleteFile('${file}')">Delete</button>`;
         } else {
-          div.innerHTML = `<video src="/uploads/${file}" width="200" controls></video>
+          div.innerHTML = `<video src="${BACKEND_URL}/uploads/${file}" width="200" controls></video>
                            <button onclick="deleteFile('${file}')">Delete</button>`;
         }
         list.appendChild(div);
@@ -99,7 +101,7 @@
     }
 
     async function deleteFile(filename) {
-      await fetch(`/delete/${filename}`, { method: "DELETE" });
+      await fetch(`${BACKEND_URL}/delete/${filename}`, { method: "DELETE" });
       loadMediaList();
     }
 
